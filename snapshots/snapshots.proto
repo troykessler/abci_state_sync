@@ -1,0 +1,125 @@
+syntax = "proto3";
+package snapshots;
+
+option go_package = "google.golang.org/abci_state_sync/snapshots";
+
+// This file is copied from http://github.com/tendermint/abci
+// NOTE: When using custom types, mind the warnings.
+// https://github.com/gogo/protobuf/blob/master/custom_types.md#warnings-and-issues
+
+//----------------------------------------
+// Request types
+
+message Request {
+  oneof value {
+    RequestListSnapshots      list_snapshots       = 12;
+    RequestOfferSnapshot      offer_snapshot       = 13;
+    RequestLoadSnapshotChunk  load_snapshot_chunk  = 14;
+    RequestApplySnapshotChunk apply_snapshot_chunk = 15;
+  }
+}
+
+
+
+// lists available snapshots
+message RequestListSnapshots {
+}
+
+// offers a snapshot to the application
+message RequestOfferSnapshot {
+  Snapshot snapshot = 1;  // snapshot offered by peers
+  bytes    app_hash = 2;  // light client-verified app hash for snapshot height
+}
+
+// loads a snapshot chunk
+message RequestLoadSnapshotChunk {
+  uint64 height = 1;
+  uint32 format = 2;
+  uint32 chunk  = 3;
+}
+
+// Applies a snapshot chunk
+message RequestApplySnapshotChunk {
+  uint32 index  = 1;
+  bytes  chunk  = 2;
+  string sender = 3;
+}
+
+//----------------------------------------
+// Response types
+
+message Response {
+  oneof value {
+    ResponseListSnapshots      list_snapshots       = 13;
+    ResponseOfferSnapshot      offer_snapshot       = 14;
+    ResponseLoadSnapshotChunk  load_snapshot_chunk  = 15;
+    ResponseApplySnapshotChunk apply_snapshot_chunk = 16;
+  }
+}
+
+message ResponseInfo {
+  string data = 1;
+
+  string version     = 2;
+  uint64 app_version = 3;
+
+  int64 last_block_height   = 4;
+  bytes last_block_app_hash = 5;
+}
+
+message ResponseListSnapshots {
+  repeated Snapshot snapshots = 1;
+}
+
+message ResponseOfferSnapshot {
+  Result result = 1;
+
+  enum Result {
+    UNKNOWN       = 0;  // Unknown result, abort all snapshot restoration
+    ACCEPT        = 1;  // Snapshot accepted, apply chunks
+    ABORT         = 2;  // Abort all snapshot restoration
+    REJECT        = 3;  // Reject this specific snapshot, try others
+    REJECT_FORMAT = 4;  // Reject all snapshots of this format, try others
+    REJECT_SENDER = 5;  // Reject all snapshots from the sender(s), try others
+  }
+}
+
+message ResponseLoadSnapshotChunk {
+  bytes chunk = 1;
+}
+
+message ResponseApplySnapshotChunk {
+  Result          result         = 1;
+  repeated uint32 refetch_chunks = 2;  // Chunks to refetch and reapply
+  repeated string reject_senders = 3;  // Chunk senders to reject and ban
+
+  enum Result {
+    UNKNOWN         = 0;  // Unknown result, abort all snapshot restoration
+    ACCEPT          = 1;  // Chunk successfully accepted
+    ABORT           = 2;  // Abort all snapshot restoration
+    RETRY           = 3;  // Retry chunk (combine with refetch and reject)
+    RETRY_SNAPSHOT  = 4;  // Retry snapshot (combine with refetch and reject)
+    REJECT_SNAPSHOT = 5;  // Reject this snapshot, try others
+  }
+}
+
+//----------------------------------------
+// State Sync Types
+
+message Snapshot {
+  uint64 height   = 1;  // The height at which the snapshot was taken
+  uint32 format   = 2;  // The application-specific snapshot format
+  uint32 chunks   = 3;  // Number of chunks in the snapshot
+  bytes  hash     = 4;  // Arbitrary snapshot hash, equal only if identical
+  bytes  metadata = 5;  // Arbitrary application metadata
+}
+
+//----------------------------------------
+// Service Definition
+
+service ABCIApplication {
+  rpc ListSnapshots(RequestListSnapshots) returns (ResponseListSnapshots);
+  rpc OfferSnapshot(RequestOfferSnapshot) returns (ResponseOfferSnapshot);
+  rpc LoadSnapshotChunk(RequestLoadSnapshotChunk) returns (ResponseLoadSnapshotChunk);
+  rpc ApplySnapshotChunk(RequestApplySnapshotChunk) returns (ResponseApplySnapshotChunk);
+}
