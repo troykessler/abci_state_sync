@@ -26,4 +26,15 @@ func main() {
 	}
 
 	fmt.Println(res.Snapshots)
+
+	resChunk, errChunk := socketClient.LoadSnapshotChunkSync(types.RequestLoadSnapshotChunk{
+		Height: 6000,
+		Format: 2,
+		Chunk:  0,
+	})
+	if errChunk != nil {
+		fmt.Println(errChunk.Error())
+	}
+
+	fmt.Println(resChunk)
 }
